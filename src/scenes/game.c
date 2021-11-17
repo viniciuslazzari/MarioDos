@@ -1,6 +1,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include <ctype.h>
 #include "game.h"
 #include "../globals.h"
@@ -18,6 +19,7 @@ Game initGame()
 	game.map = initMap();
 	game.mario = initMario();
 	game.player = initPlayer();
+	game.coin = initCoin();
 
 	return game;
 }
@@ -38,6 +40,9 @@ Map initMap()
 	map.blockingElementsLoaded = 0;
 	map.numBlockingElements = 0;
 
+    map.pipePositionsLoaded = 0;
+	map.numPipePositions = 0;
+
 	return map;
 }
 
@@ -47,7 +52,7 @@ Mario initMario()
     Mario mario;
 
     // Carrega assets do Mario
-	mario.sprite = LoadTexture("assets/sprites/floor.png");
+	mario.sprite = LoadTexture("assets/sprites/mario.png");
 	mario.positionLoaded = 0;
 	mario.isBlocked = 0;
 	mario.jumpingSequence = 0;
@@ -68,6 +73,18 @@ Player initPlayer()
 	return player;
 }
 
+// Função para iniciar o elemento de moeda
+Coin initCoin(){
+    Coin coin;
+
+    coin.numCoins = 0;
+	coin.sprite = LoadTexture("assets/sprites/coin.png");
+	coin.coinKey = 11;
+	coin.genereationSequence = 0;
+
+    return coin;
+}
+
 // Função para controlar os estados do jogo
 void handleGame(Game *game, SceneOption *currentScene)
 {
@@ -80,6 +97,7 @@ void drawGame(Game *game)
 {
 	drawMap(game);
 	updateMario(game);
+	generateCoins(game);
 }
 
 // Função para desenhar a interface do jogo
@@ -130,7 +148,7 @@ void drawMap(Game *game)
 	{
 		// Para cada elemento no arquivo
 		// (mapWidthChars * mapHeightChars) + mapHeightChars para considerar os "\n"
-		for (int i = 0; i < (mapWidthChars * mapHeightChars) + mapHeightChars; i++)
+		for (int i = 0; i < (mapWidthChars * mapHeightChars); i++)
 		{
 			// Tentar ler o char do arquivo
 			if (fread(&element, sizeof(char), 1, ptrGame) == 1)
@@ -154,7 +172,7 @@ void drawMap(Game *game)
 				// Se for o elemento neutro "-" ou "m" de mario, pula
                 if (element != '-' && element != 'm'){
                     // Desenha o elemento na tela
-                    drawElementInScreen(element, posX, posY, game->map);
+                    drawElementInScreen(element, posX, posY, game);
 
                     // Adiciona os elementos de bloqueio no array
                     if (game->map.blockingElementsLoaded == 0){
@@ -188,6 +206,7 @@ void drawMap(Game *game)
         game->map.numBlockingElements = g - 1;
     }
 
+    game->map.pipePositionsLoaded = 1;
 	game->map.blockingElementsLoaded = 1;
 
 	// Função para desenhar o chão do jogo, que não muda
@@ -195,16 +214,23 @@ void drawMap(Game *game)
 }
 
 // Função para desenhar um elemento (char), na tela
-void drawElementInScreen(char element, int posX, int posY, Map map)
+void drawElementInScreen(char element, int posX, int posY, Game *game)
 {
+    int width = elementWidth;
+    int height = elementHeight;
 	Texture2D elementTexture;
 
+	if (element == 'b') {
+        width = 40;
+        height = 40;
+	}
+
 	// Função que retorna a textura a ser utilizada pelo char
-	elementTexture = getTextureByChar(element, map);
+	elementTexture = getTextureByChar(element, game->map);
 
 	// Posicionamento padrão na tela
 	Rectangle sourceRec = {0.0f, 0.0f, (float)elementTexture.width, (float)elementTexture.height};
-	Rectangle destRec = {(float)posX, (float)posY, (float)elementWidth, (float)elementHeight};
+	Rectangle destRec = {(float)posX, (float)posY, (float)width, (float)height};
 	Vector2 origin = {(float)elementTexture.width, (float)elementTexture.height};
 	int rotation = 0;
 
@@ -212,9 +238,26 @@ void drawElementInScreen(char element, int posX, int posY, Map map)
 	DrawTexturePro(elementTexture, sourceRec, destRec, origin, (float)rotation, WHITE);
 
 	// Se o elemento for um cano, é necesário desenhar o resto do corpo dele
-	if (isdigit(element) || element == 's')
-		// Função que desenha o corpo do cano
-		drawPipeBody(posX, posY, map.flatPipe);
+	if (isdigit(element) || element == 's'){
+        PipePosition pipePosition;
+        int isPipeInLeftSide = 1;
+
+        // Verifica se o cano está do lado direito da tela
+        if (posX > halfScreenWidth)
+            isPipeInLeftSide = 0;
+
+        // Função que desenha o corpo do cano
+		drawPipeBody(posX, posY, game->map.flatPipe, isPipeInLeftSide);
+
+		if (game->map.pipePositionsLoaded == 0 && element == 's'){
+            pipePosition.x = posX;
+            pipePosition.y = posY;
+            pipePosition.leftSideOfScreen = isPipeInLeftSide;
+
+            game->map.pipePositions[game->map.numPipePositions] = pipePosition;
+            game->map.numPipePositions++;
+		}
+	}
 }
 
 // Função que retorna a textura que deve ser utilizada pelo char
@@ -268,7 +311,7 @@ void drawFloor(Texture2D floor)
 		posX = 0;
 
 		// Para cada coluna
-		for (int j = 0; j < mapWidthChars; j++)
+		for (int j = 0; j < mapWidthChars + 1; j++)
 		{
 			// Desenha a textura de chão na posicão X, Y
 			Rectangle destRec = {(float)posX, (float)posY, (float)elementWidth, (float)elementHeight};
@@ -284,19 +327,12 @@ void drawFloor(Texture2D floor)
 }
 
 // Função para desenhar o corpo do cano
-void drawPipeBody(int posX, int posY, Texture2D flatPipe)
+void drawPipeBody(int posX, int posY, Texture2D flatPipe, int isPipeInLeftSide)
 {
-	// Por pdrão o cano está no lado esquerdo da tela
-	int isPipeInLeftSide = 1;
-
 	// Posicionamento na tela padrão
 	Rectangle sourceRec = {0.0f, 0.0f, (float)flatPipe.width, (float)flatPipe.height};
 	Vector2 origin = {(float)flatPipe.width, (float)flatPipe.height};
 	int rotation = 0;
-
-	// Verifica se o cano está do lado direito da tela
-	if (posX > halfScreenWidth)
-		isPipeInLeftSide = 0;
 
 	// Checa em qual lado da tela o cano está
 	if (isPipeInLeftSide)
@@ -305,7 +341,7 @@ void drawPipeBody(int posX, int posY, Texture2D flatPipe)
 		// pelo tamanho do elemento desenhado, até que X = 0, o canto da tela
 		while (posX != 0)
 		{
-			Rectangle destRec = {(float)posX, (float)posY, (float)elementWidth, (float)elementHeight};
+			Rectangle destRec = {(float)posX, (float)posY, (float)elementWidth, (float)80};
 			DrawTexturePro(flatPipe, sourceRec, destRec, origin, (float)rotation, WHITE);
 
 			posX -= elementWidth;
@@ -317,7 +353,7 @@ void drawPipeBody(int posX, int posY, Texture2D flatPipe)
 		// pelo tamanho do elemento desenhado, até que X = screenWidth, o canto da tela
 		while (posX != screenWidth)
 		{
-			Rectangle destRec = {(float)posX, (float)posY, (float)elementWidth, (float)elementHeight};
+			Rectangle destRec = {(float)posX, (float)posY, (float)elementWidth, (float)80};
 			DrawTexturePro(flatPipe, sourceRec, destRec, origin, (float)rotation, WHITE);
 
 			posX += elementWidth;
@@ -327,56 +363,173 @@ void drawPipeBody(int posX, int posY, Texture2D flatPipe)
 
 // Função que fica atualizando a posição do mario
 void updateMario(Game *game){
+    int sprite = 0;
+    int widthDivider = 8;
+
     game->mario.isBlocked = 0;
 
     // Se o mario esta nos limites de um bloco de travamento ou está no chão, seta a flag de bloqueio
     for(int i = 0; i <= game->map.numBlockingElements; i++){
-        if (game->map.blockingElements[i].y == (game->mario.y + elementHeight) &&
-            (game->mario.x >= game->map.blockingElements[i].x && game->mario.x <= (game->map.blockingElements[i].x + elementWidth)))
+        if (game->map.blockingElements[i].y == (game->mario.y + 75) &&
+            (game->mario.x >= game->map.blockingElements[i].x && game->mario.x <= (game->map.blockingElements[i].x + 50)))
         {
             game->mario.isBlocked = 1;
         }
 
-        if ((game->mario.y + elementHeight) == floorPosY){
+        if ((game->mario.y + 75) == floorPosY){
             game->mario.isBlocked = 1;
         }
     }
-
-    // Se o Mario estiver pulando, atualiza sua altura
-    if (game->mario.jumpingSequence != 0){
-        game->mario.y -= deltha;
-        game->mario.jumpingSequence--;
-    }
-
-    // Se o mario não estiver bloqueado e não estiver pulando, faz ele cair
-    if (game->mario.isBlocked == 0 && game->mario.jumpingSequence == 0){
-        game->mario.y += deltha;
-    }
-
-    // Se o mario não estiver pulando e tentar pular, atualiza sua altura
-    if (IsKeyPressed(KEY_UP) && game->mario.jumpingSequence == 0)
-	{
-	    game->mario.jumpingSequence = 30;
-	}
 
 	// Se a tecla para esquerda for pressionada, move o mario para esquerda
     if (IsKeyDown(KEY_LEFT))
 	{
 	    game->mario.x -= deltha;
+	    sprite = 1;
+	    widthDivider = -widthDivider;
 	}
 
 	// Se a tecla para direita for pressionada, move o mario para direita
 	if (IsKeyDown(KEY_RIGHT))
 	{
 	    game->mario.x += deltha;
+	    sprite = 1;
 	}
 
+    // Se o mario não estiver bloqueado e não estiver pulando, faz ele cair
+    if (game->mario.isBlocked == 0 && game->mario.jumpingSequence == 0){
+        game->mario.y += deltha;
+        sprite = 6;
+    }
+
+    // Se o mario não estiver pulando e tentar pular, atualiza sua altura
+    if (IsKeyPressed(KEY_UP) && game->mario.jumpingSequence == 0)
+	{
+	    game->mario.jumpingSequence = 30;
+	    sprite = 4;
+	}
+
+    // Se o Mario estiver pulando, atualiza sua altura
+    if (game->mario.jumpingSequence != 0){
+        game->mario.y -= deltha;
+        game->mario.jumpingSequence--;
+        sprite = 4;
+    }
+
+    for (int i = 0; i < game->coin.numCoins; i++){
+        if (game->mario.x == game->coin.positions[i].x && game->mario.y == game->coin.positions[i].y && game->coin.positions[i].isCollected == 0){
+            game->player.points += 400;
+            game->coin.positions[i].isCollected = 1;
+        }
+    }
+
     // Posicionamento padrão na tela
-	Rectangle sourceRec = {0.0f, 0.0f, (float)game->mario.sprite.width, (float)game->mario.sprite.height};
-	Rectangle destRec = {(float)game->mario.x, (float)game->mario.y, (float)elementWidth, (float)elementHeight};
-	Vector2 origin = {(float)game->mario.sprite.width, (float)game->mario.sprite.height};
+	Rectangle sourceRec = {(float)game->mario.sprite.width / 8 * sprite, 0.0f, (float)game->mario.sprite.width / widthDivider, (float)game->mario.sprite.height};
+	Rectangle destRec = {(float)game->mario.x, (float)game->mario.y, 50, 75};
+	Vector2 origin = {50, 8};
 	int rotation = 0;
 
 	// Desenha o elemento na tela
 	DrawTexturePro(game->mario.sprite, sourceRec, destRec, origin, (float)rotation, WHITE);
+}
+
+// Função para gerar moedas aleatóriamente e desenhar na tela
+void generateCoins(Game *game){
+    int r = 0;
+    int coinWidth = 50;
+    int coinHeight = 75;
+    CoinPosition position;
+    int pipePositionOfCoin = 0;
+
+    // Gera um número aleatório até 15
+    srand(time(NULL));
+    r = rand() % 15;
+
+    // Se uma moeda tiver sido gerada recentemente, decrementa o timer
+    if (game->coin.genereationSequence != 0){
+        game->coin.genereationSequence--;
+    }
+
+    // Se o número gerado for igual a chave de geração e nenhuma moeda tenha sido gerada recentemente
+    if (game->coin.coinKey == r && game->coin.genereationSequence == 0) {
+        // Gera uma nova chave
+        game->coin.coinKey = rand() % 15 - 2;
+
+        // Reseta o time
+        game->coin.genereationSequence = 300;
+
+        // Recebe a posição de um cano aleatório
+        pipePositionOfCoin = rand() % game->map.numPipePositions;
+
+        // Cria um elemento de posição de moeda
+        position.x = game->map.pipePositions[pipePositionOfCoin].x;
+        position.y = game->map.pipePositions[pipePositionOfCoin].y;
+        position.goingToRight = game->map.pipePositions[pipePositionOfCoin].leftSideOfScreen;
+        position.isBlocked = 0;
+        position.isCollected = 0;
+
+        // Incrementa as variáveis
+        game->coin.positions[game->coin.numCoins] = position;
+        game->coin.numCoins++;
+    }
+
+    // Posicionamento padrão na tela
+	Rectangle sourceRec = {0.0f, 0.0f, (float)game->coin.sprite.width, (float)game->coin.sprite.height};
+	Vector2 origin = {0, 3};
+	int rotation = 0;
+
+	// Reseta o bloqueio de todas moedas
+	for (int i = 0; i < game->coin.numCoins; i++){
+	    game->coin.positions[i].isBlocked = 0;
+	}
+
+    for (int i = 0; i < game->coin.numCoins; i++){
+
+        // Se a moeda esta nos limites de um bloco de travamento ou está no chão, seta a flag de bloqueio
+        for(int j = 0; j <= game->map.numBlockingElements; j++){
+            if (game->map.blockingElements[j].y == (game->coin.positions[i].y + coinHeight) &&
+               (game->coin.positions[i].x >= game->map.blockingElements[j].x) && game->coin.positions[i].x <= (game->map.blockingElements[j].x + 5))
+            {
+                game->coin.positions[i].isBlocked = 1;
+            }
+
+            if ((game->coin.positions[i].y + coinHeight) == floorPosY){
+                game->coin.positions[i].isBlocked = 1;
+            }
+        }
+
+        // Controla a movimentação da moeda
+        if (game->coin.positions[i].isBlocked == 1){
+
+            // Muda a posição horizontal conforme orientação
+            if (game->coin.positions[i].goingToRight){
+                game->coin.positions[i].x += deltha;
+            } else {
+                game->coin.positions[i].x -= deltha;
+            }
+
+            // Reseta posição se ficar na borda
+            if (game->coin.positions[i].x >= screenWidth && game->coin.positions[i].goingToRight == 1){
+                game->coin.positions[i].x = 0;
+            }
+
+            // Reseta posição se ficar na borda
+            if (game->coin.positions[i].x == 0 && game->coin.positions[i].goingToRight == 0){
+                game->coin.positions[i].x = screenWidth;
+            }
+        }
+
+        // Se a moeda estiver caindo, atualiza posição
+        if (game->coin.positions[i].isBlocked == 0){
+            game->coin.positions[i].y += deltha;
+        }
+
+        // Se a moeda não tiver sido coletada, printa ela na tela
+        if (game->coin.positions[i].isCollected == 0){
+            Rectangle destRec = {(float)game->coin.positions[i].x, (float)game->coin.positions[i].y, coinWidth, coinHeight};
+
+            // Desenha o elemento na tela
+            DrawTexturePro(game->coin.sprite, sourceRec, destRec, origin, (float)rotation, WHITE);
+        }
+    }
 }

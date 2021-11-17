@@ -11,13 +11,13 @@
 	"scenes/highscores.h"
 	"scenes/about.h"
 
-1636994748 c:\users\vinil\onedrive\documentos\dev\mariobros3\src\globals.h
+1637106007 c:\users\vinil\onedrive\documentos\dev\mariobros3\src\globals.h
 	<raylib.h>
 
 1636064394 c:\users\vinil\onedrive\documentos\dev\mariobros3\src\scenes\menu.h
 	"../globals.h"
 
-1636997525 c:\users\vinil\onedrive\documentos\dev\mariobros3\src\scenes\game.h
+1637105982 c:\users\vinil\onedrive\documentos\dev\mariobros3\src\scenes\game.h
 	"../globals.h"
 
 1636064394 c:\users\vinil\onedrive\documentos\dev\mariobros3\src\scenes\highscores.h
@@ -32,7 +32,7 @@
 1636506365 source:c:\users\vinil\onedrive\documentos\dev\mariobros3\src\colors.c
 	"globals.h"
 
-1636994894 source:c:\users\vinil\onedrive\documentos\dev\mariobros3\src\globals.c
+1637105932 source:c:\users\vinil\onedrive\documentos\dev\mariobros3\src\globals.c
 	"globals.h"
 
 1636993404 source:c:\users\vinil\onedrive\documentos\dev\mariobros3\src\scenehandler.c
@@ -69,10 +69,11 @@
 	<stdlib.h>
 	"highscoresServices.h"
 
-1636995995 source:c:\users\vinil\onedrive\documentos\dev\mariobros3\src\scenes\game.c
+1637106192 source:c:\users\vinil\onedrive\documentos\dev\mariobros3\src\scenes\game.c
 	<math.h>
 	<stdio.h>
 	<string.h>
+	<time.h>
 	<ctype.h>
 	"game.h"
 	"../globals.h"
