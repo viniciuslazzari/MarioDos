@@ -4,14 +4,14 @@
 
 typedef struct Score
 {
-	char name[20];
-	int value;
+	char name[20];					            // O que vai ser escrito na tela
+	int value;					                // Valor da opção
 } Score;
 
 typedef struct Highscores
 {
-	int scoresLoaded;
-	Score scores[highscoresMaxOptions];
+	int scoresLoaded;				            // Flag para saber se o ranking já foi carregado
+	Score scores[highscoresMaxOptions];		    // Array com as opções
 } Highscores;
 
 Highscores initHighscores();

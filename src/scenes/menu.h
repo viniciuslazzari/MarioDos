@@ -5,8 +5,8 @@
 // Tipo de opção do menu
 typedef struct MenuOption
 {
-	const char *label; // O que vai ser escrito na tela
-	SceneOption value; // Valor da opção
+	const char *label;                  // O que vai ser escrito na tela
+	SceneOption value;                  // Valor da opção
 } MenuOption;
 
 typedef struct Menu

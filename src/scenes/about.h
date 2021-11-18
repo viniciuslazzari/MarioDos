@@ -4,13 +4,13 @@
 
 typedef struct About
 {
-	const char *title;
-	const char *subtitle;
-	const char *credits;
-	const char *repository;
+	const char *title;			    // Título da cena de ajuda
+	const char *subtitle;			// Sub-titulo da cena de ajuda
+	const char *credits;			// Créditos da cena de ajuda
+	const char *repository;			// Repositório do projeto
 
-	Texture2D marioSprites;
-	int currentMarioSprite;
+	Texture2D marioSprites;			// Textura do mario para ficar animado na tela
+	int currentMarioSprite;			// Controle do sprite atual da tela
 } About;
 
 About initAbout();
