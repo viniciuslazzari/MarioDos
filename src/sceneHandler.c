@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "sceneHandler.h"
 #include "globals.h"
+#include "./services/gameServices.h"
 
 // Inicia todas as cenas que serão usadas
 SceneHandler initScenes()
@@ -39,6 +40,8 @@ void handleScene(SceneHandler *sceneHandler)
 // Função para desenhar a cena atual
 void drawScene(SceneHandler *sceneHandler)
 {
+    Game game;
+
 	// Switch para saber qual é a cena atual
 	switch (sceneHandler->currentScene)
 	{
@@ -46,13 +49,16 @@ void drawScene(SceneHandler *sceneHandler)
 		handleMenu(&sceneHandler->menu, &sceneHandler->currentScene);
 		break;
 	case NEWGAME:
+        sceneHandler->newGame.fileMap = "data/phases/nivel1.txt";
 		handleGame(&sceneHandler->newGame, &sceneHandler->currentScene);
 		break;
 	case LOADGAME:
-		printf("LOADGAME");
+	    game = loadGame();
+	    handleGame(&game, &sceneHandler->currentScene);
 		break;
 	case LOADMAP:
-		printf("LOADMAP");
+	    sceneHandler->newGame.fileMap = "data/phases/single.txt";
+	    handleGame(&sceneHandler->newGame, &sceneHandler->currentScene);
 		break;
 	case HIGHSCORES:
 		handleHighscores(&sceneHandler->highscores, &sceneHandler->currentScene);

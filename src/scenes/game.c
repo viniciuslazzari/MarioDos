@@ -1,9 +1,11 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <time.h>
 #include <ctype.h>
 #include "game.h"
+#include "../services/gameServices.h"
 #include "../globals.h"
 #include "../colors.h"
 
@@ -13,13 +15,15 @@ Game initGame()
 	Game game;
 
 	// Define qual é a fase inicial do jogo
-	game.fileMap = "data/phases/nivel1.txt";
+	game.isGameConfigRead = 0;
 
 	// Os elementos do jogo são retornados através de uma função
 	game.map = initMap();
 	game.mario = initMario();
 	game.player = initPlayer();
 	game.coin = initCoin();
+	game.turtle = initTurtle();
+	game.crab = initCrab();
 
 	return game;
 }
@@ -85,9 +89,48 @@ Coin initCoin(){
     return coin;
 }
 
+// Função para inicializar as tartarugas
+Turtle initTurtle(){
+    Turtle turtle;
+
+    turtle.numTurtles = 0;
+	turtle.sprite = LoadTexture("assets/sprites/turtle.png");
+	turtle.genereationSequence = 0;
+
+    return turtle;
+}
+
+// Função para inicializar os caranguejos
+Crab initCrab(){
+    Crab crab;
+
+    crab.numCrabs = 0;
+	crab.sprite = LoadTexture("assets/sprites/crab.png");
+	crab.genereationSequence = 0;
+
+    return crab;
+}
+
 // Função para controlar os estados do jogo
 void handleGame(Game *game, SceneOption *currentScene)
 {
+    // Se pressionar enter, volta para o Menu
+	if (IsKeyPressed(KEY_ENTER))
+	{
+		*currentScene = MENU;
+	}
+
+    // Se pressionar enter, volta para o Menu
+	if (IsKeyPressed(65))
+	{
+		saveGame(*game);
+	}
+
+	// Se as configurações do jogo ainda não foram carregadas, carrega
+    if (game->isGameConfigRead == 0){
+        getGameConfig(game);
+    }
+
 	drawGame(game);
 	drawInterface(game);
 }
@@ -98,6 +141,43 @@ void drawGame(Game *game)
 	drawMap(game);
 	updateMario(game);
 	generateCoins(game);
+	generateTurtles(game);
+	generateCrabs(game);
+}
+
+// Função para receber as configurações do jogo presente na ultima linha
+void getGameConfig(Game *game){
+    FILE *ptrGame;
+    char element;
+
+    ptrGame = fopen(game->fileMap, "r");
+
+    if (ptrGame != NULL){
+        fseek(ptrGame, -1, SEEK_END);
+        element = fgetc(ptrGame);
+
+        // Converte char para int
+        game->timeBetweenEnemies = element - '0';
+
+        fseek(ptrGame, -3, SEEK_END);
+        element = fgetc(ptrGame);
+
+        // Converte char para int
+        game->crab.numCrabsExpected = element  - '0';
+
+        fseek(ptrGame, -5, SEEK_END);
+        element = fgetc(ptrGame);
+
+        // Converte char para int
+        game->turtle.numTurtlesExpected = element - '0';
+
+        // Liga a flag que as configurações já foram carregadas
+        game->isGameConfigRead = 1;
+
+        fclose(ptrGame);
+    }else{
+        printf("Erro ao abrir arquivo do mapa!\n");
+    }
 }
 
 // Função para desenhar a interface do jogo
@@ -403,7 +483,7 @@ void updateMario(Game *game){
     }
 
     // Se o mario não estiver pulando e tentar pular, atualiza sua altura
-    if (IsKeyPressed(KEY_UP) && game->mario.jumpingSequence == 0)
+    if (IsKeyPressed(KEY_UP) && game->mario.jumpingSequence == 0 && game->mario.isBlocked == 1)
 	{
 	    game->mario.jumpingSequence = 30;
 	    sprite = 4;
@@ -530,6 +610,198 @@ void generateCoins(Game *game){
 
             // Desenha o elemento na tela
             DrawTexturePro(game->coin.sprite, sourceRec, destRec, origin, (float)rotation, WHITE);
+        }
+    }
+}
+
+// Função para gerar as tartarugas
+void generateTurtles(Game *game){
+    int pipePositionOfTurtle;
+    TurtlePosition position;
+    int turtleWidth = 50;
+    int turtleHeight = 75;
+    int spriteWidth;
+
+    // Contador para gerar tartarugas no tempo estipulado
+    if (game->turtle.genereationSequence != 0){
+        game->turtle.genereationSequence--;
+    }
+
+    if (game->turtle.genereationSequence == 0 && game->turtle.numTurtles != game->turtle.numTurtlesExpected){
+        // Recebe a posição de um cano aleatório
+        pipePositionOfTurtle = rand() % game->map.numPipePositions;
+
+        position.x = game->map.pipePositions[pipePositionOfTurtle].x;
+        position.y = game->map.pipePositions[pipePositionOfTurtle].y;
+        position.goingToRight = game->map.pipePositions[pipePositionOfTurtle].leftSideOfScreen;
+        position.isBlocked = 0;
+        position.isDead = 0;
+
+        // Incrementa as variáveis
+        game->turtle.positions[game->turtle.numTurtles] = position;
+        game->turtle.numTurtles++;
+
+        game->turtle.genereationSequence = 50 * game->timeBetweenEnemies;
+    }
+
+    // Posicionamento padrão na tela
+	Vector2 origin = {0, 3};
+	int rotation = 0;
+
+	// Reseta o bloqueio de todas moedas
+	for (int i = 0; i < game->turtle.numTurtles; i++){
+	    game->turtle.positions[i].isBlocked = 0;
+	}
+
+	for (int i = 0; i < game->turtle.numTurtles; i++){
+
+        // Se a tartaruga esta nos limites de um bloco de travamento ou está no chão, seta a flag de bloqueio
+        for(int j = 0; j <= game->map.numBlockingElements; j++){
+            if (game->map.blockingElements[j].y == (game->turtle.positions[i].y + turtleHeight) &&
+               (game->turtle.positions[i].x >= game->map.blockingElements[j].x) && game->turtle.positions[i].x <= (game->map.blockingElements[j].x + 5))
+            {
+                game->turtle.positions[i].isBlocked = 1;
+            }
+
+            if ((game->turtle.positions[i].y + turtleHeight) == floorPosY){
+                game->turtle.positions[i].isBlocked = 1;
+            }
+        }
+
+        // Verifica se a tartaruga está no chão para que possa se mover
+        if (game->turtle.positions[i].isBlocked == 1){
+
+            if (game->turtle.positions[i].goingToRight){
+                game->turtle.positions[i].x += deltha;
+            } else {
+                game->turtle.positions[i].x -= deltha;
+            }
+
+            if (game->turtle.positions[i].x >= screenWidth && game->turtle.positions[i].goingToRight == 1){
+                game->turtle.positions[i].x = 0;
+            }
+
+            // Reseta posição se ficar na borda
+            if (game->turtle.positions[i].x == 0 && game->turtle.positions[i].goingToRight == 0){
+                game->turtle.positions[i].x = screenWidth;
+            }
+        }
+
+        // Se a moeda estiver caindo, atualiza posição
+        if (game->turtle.positions[i].isBlocked == 0){
+            game->turtle.positions[i].y += deltha;
+        }
+
+        // Se a moeda não tiver sido coletada, printa ela na tela
+        if (game->turtle.positions[i].isDead == 0){
+            spriteWidth = game->turtle.sprite.width;
+
+            // Necessário para espelhar a imagem verticalmente
+            if (game->turtle.positions[i].goingToRight){
+                spriteWidth = -spriteWidth;
+            }
+
+            Rectangle sourceRec = {0.0f, 0.0f, (float)spriteWidth, (float)game->turtle.sprite.height};
+            Rectangle destRec = {(float)game->turtle.positions[i].x, (float)game->turtle.positions[i].y, turtleWidth, turtleHeight};
+
+            // Desenha o elemento na tela
+            DrawTexturePro(game->turtle.sprite, sourceRec, destRec, origin, (float)rotation, WHITE);
+        }
+    }
+}
+
+// Função para gerar os caranguejos
+void generateCrabs(Game *game){
+    int pipeCrabPosition;
+    CrabPosition position;
+    int crabWidth = 50;
+    int crabHeight = 75;
+    int spriteWidth;
+
+    // Timer de geração
+    if (game->crab.genereationSequence != 0){
+        game->crab.genereationSequence--;
+    }
+
+    if (game->crab.genereationSequence == 0 && game->crab.numCrabs != game->crab.numCrabsExpected){
+        // Recebe a posição de um cano aleatório
+        pipeCrabPosition = rand() % game->map.numPipePositions;
+
+        position.x = game->map.pipePositions[pipeCrabPosition].x;
+        position.y = game->map.pipePositions[pipeCrabPosition].y;
+        position.goingToRight = game->map.pipePositions[pipeCrabPosition].leftSideOfScreen;
+        position.isBlocked = 0;
+        position.isDead = 0;
+
+        // Incrementa as variáveis
+        game->crab.positions[game->crab.numCrabs] = position;
+        game->crab.numCrabs++;
+
+        game->crab.genereationSequence = 50 * game->timeBetweenEnemies;
+    }
+
+    // Posicionamento padrão na tela
+	Vector2 origin = {0, 3};
+	int rotation = 0;
+
+	// Reseta o bloqueio de todas moedas
+	for (int i = 0; i < game->crab.numCrabs; i++){
+	    game->crab.positions[i].isBlocked = 0;
+	}
+
+	for (int i = 0; i < game->crab.numCrabs; i++){
+
+        // Se o caranguejo esta nos limites de um bloco de travamento ou está no chão, seta a flag de bloqueio
+        for(int j = 0; j <= game->map.numBlockingElements; j++){
+            if (game->map.blockingElements[j].y == (game->crab.positions[i].y + crabHeight) &&
+               (game->crab.positions[i].x >= game->map.blockingElements[j].x) && game->crab.positions[i].x <= (game->map.blockingElements[j].x + 5))
+            {
+                game->crab.positions[i].isBlocked = 1;
+            }
+
+            if ((game->crab.positions[i].y + crabHeight) == floorPosY){
+                game->crab.positions[i].isBlocked = 1;
+            }
+        }
+
+        // Verifica se o caranguejo está no chão para que possa se mover
+        if (game->crab.positions[i].isBlocked == 1){
+
+            if (game->crab.positions[i].goingToRight){
+                game->crab.positions[i].x += deltha;
+            } else {
+                game->crab.positions[i].x -= deltha;
+            }
+
+            if (game->crab.positions[i].x >= screenWidth && game->crab.positions[i].goingToRight == 1){
+                game->crab.positions[i].x = 0;
+            }
+
+            // Reseta posição se ficar na borda
+            if (game->crab.positions[i].x == 0 && game->crab.positions[i].goingToRight == 0){
+                game->crab.positions[i].x = screenWidth;
+            }
+        }
+
+        // Se a moeda estiver caindo, atualiza posição
+        if (game->crab.positions[i].isBlocked == 0){
+            game->crab.positions[i].y += deltha;
+        }
+
+        // Se a moeda não tiver sido coletada, printa ela na tela
+        if (game->crab.positions[i].isDead == 0){
+            spriteWidth = game->crab.sprite.width;
+
+            // Espelho da imagem
+            if (game->crab.positions[i].goingToRight){
+                spriteWidth = -spriteWidth;
+            }
+
+            Rectangle sourceRec = {0.0f, 0.0f, (float)spriteWidth, (float)game->crab.sprite.height};
+            Rectangle destRec = {(float)game->crab.positions[i].x, (float)game->crab.positions[i].y, crabWidth, crabHeight};
+
+            // Desenha o elemento na tela
+            DrawTexturePro(game->crab.sprite, sourceRec, destRec, origin, (float)rotation, WHITE);
         }
     }
 }

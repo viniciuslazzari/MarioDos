@@ -66,13 +66,51 @@ typedef struct Coin
 	CoinPosition positions[100];
 } Coin;
 
+typedef struct TurtlePosition {
+    int x;
+    int y;
+    int isBlocked;
+    int goingToRight;
+    int isDead;
+} TurtlePosition;
+
+typedef struct Turtle
+{
+    int numTurtles;
+    int numTurtlesExpected;
+    int genereationSequence;
+	Texture2D sprite;
+	TurtlePosition positions[100];
+} Turtle;
+
+typedef struct CrabPosition {
+    int x;
+    int y;
+    int isBlocked;
+    int goingToRight;
+    int isDead;
+} CrabPosition;
+
+typedef struct Crab
+{
+    int numCrabs;
+    int numCrabsExpected;
+    int genereationSequence;
+	Texture2D sprite;
+	CrabPosition positions[100];
+} Crab;
+
 typedef struct Game
 {
-	const char *fileMap;
+    char *fileMap;
+	int isGameConfigRead;
+	int timeBetweenEnemies;
 	Map map;
 	Mario mario;
 	Player player;
 	Coin coin;
+	Turtle turtle;
+	Crab crab;
 } Game;
 
 Game initGame();
@@ -80,14 +118,20 @@ Map initMap();
 Mario initMario();
 Player initPlayer();
 Coin initCoin();
+Turtle initTurtle();
+Crab initCrab();
 void handleGame(Game *game, SceneOption *currentScene);
 void drawGame(Game *game);
 void drawInterface(Game *game);
 void drawMap(Game *game);
+void getGameConfig(Game *game);
 void drawElementInScreen(char element, int posX, int posY, Game *game);
 Texture2D getTextureByChar(char element, Map map);
 void drawFloor(Texture2D floor);
 void drawPipeBody(int posX, int posY, Texture2D flatPipe, int isPipeInLeftSide);
 void updateMario(Game *game);
+void generateCoins(Game *game);
+void generateTurtles(Game *game);
+void generateCrabs(Game *game);
 
 #endif

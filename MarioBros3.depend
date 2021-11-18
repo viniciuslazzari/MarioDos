@@ -17,7 +17,7 @@
 1636064394 c:\users\vinil\onedrive\documentos\dev\mariobros3\src\scenes\menu.h
 	"../globals.h"
 
-1637105982 c:\users\vinil\onedrive\documentos\dev\mariobros3\src\scenes\game.h
+1637191978 c:\users\vinil\onedrive\documentos\dev\mariobros3\src\scenes\game.h
 	"../globals.h"
 
 1636064394 c:\users\vinil\onedrive\documentos\dev\mariobros3\src\scenes\highscores.h
@@ -35,7 +35,7 @@
 1637105932 source:c:\users\vinil\onedrive\documentos\dev\mariobros3\src\globals.c
 	"globals.h"
 
-1636993404 source:c:\users\vinil\onedrive\documentos\dev\mariobros3\src\scenehandler.c
+1637192123 source:c:\users\vinil\onedrive\documentos\dev\mariobros3\src\scenehandler.c
 	<stdio.h>
 	"sceneHandler.h"
 	"globals.h"
